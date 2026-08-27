@@ -151,6 +151,12 @@ loop2Solution = solve(eqn12, [wEF wFG]);
 wEF_value = double(loop2Solution.wEF)
 wFG_value = double(loop2Solution.wFG)
 
+% Pack the loop 2 results the same way loop 1 was packed. Everything below
+% uses these two names. The earlier draft reached for angularVelocity_EF
+% and angularVelocity_FG, which were never assigned, so it errored here.
+omegaEF = [0 0 wEF_value];
+omegaFG = [0 0 wFG_value];
+
 % Angular acceleration
 % Loop 1 ABCDA
 
@@ -174,15 +180,142 @@ alphaCD = double(loop1AccSolution.aCD)
 alphaBEC_vector = [0 0 alphaBEC];
 alphaCD_vector = [0 0 alphaCD];
 
+% Angular acceleration
+% Loop 2 DCEFGD, the same circuit that produced wEF and wFG
+
 syms aEF aFG
 
 alpha_EF = [0 0 aEF];
 alpha_FG = [0 0 aFG];
 
+% The first two terms are already numeric because loop 1 has been solved.
+% Only a_F_E and a_G_F still carry unknowns.
 a_C_D = cross(alphaCD_vector,C-D) + cross(omegaCD,cross(omegaCD,C-D));
 a_E_C = cross(alphaBEC_vector,E-C) + cross(omegaBEC,cross(omegaBEC,E-C));
+a_F_E = cross(alpha_EF,F-E) + cross(omegaEF,cross(omegaEF,F-E));
+a_G_F = cross(alpha_FG,G-F) + cross(omegaFG,cross(omegaFG,G-F));
 
-ang_Vel_EF = [0 0 angularVelocity_EF];
-ang_vel_FG = [0 0 angularVelocity_FG];
+eqn14 = a_C_D + a_E_C + a_F_E + a_G_F == 0;
 
-a_F_E = cross(alpha_EF,F-E) + cross()
+loop2AccSolution = solve(eqn14,[aEF aFG]);
+
+alphaEF = double(loop2AccSolution.aEF)
+alphaFG = double(loop2AccSolution.aFG)
+
+alphaEF_vector = [0 0 alphaEF];
+alphaFG_vector = [0 0 alphaFG];
+
+alphaAB_vector = [0 0 0];
+
+disp(' ');
+disp('Angular Velocities (rad/s, positive counterclockwise):');
+disp(['omega AB:  ', num2str(1)]);
+disp(['omega BEC: ', num2str(wBEC_value)]);
+disp(['omega CD:  ', num2str(wCD_value)]);
+disp(['omega EF:  ', num2str(wEF_value)]);
+disp(['omega FG:  ', num2str(wFG_value)]);
+
+disp(' ');
+disp('Angular Accelerations (rad/s^2):');
+disp(['alpha AB:  ', num2str(0)]);
+disp(['alpha BEC: ', num2str(alphaBEC)]);
+disp(['alpha CD:  ', num2str(alphaCD)]);
+disp(['alpha EF:  ', num2str(alphaEF)]);
+disp(['alpha FG:  ', num2str(alphaFG)]);
+
+% Velocities at the joints
+% A, D and G are pinned to ground so they do not move. Every other point
+% is reached with v = omega x r, where r runs from a point of known
+% velocity on the same link to the point of interest. Any point can be
+% reached by more than one route because the loops close, and the two
+% routes have to agree. That agreement is the check on the loop solutions.
+velocityA = [0 0 0];
+velocityD = [0 0 0];
+velocityG = [0 0 0];
+
+% B belongs to AB, which pivots about A
+velocityB = cross(omega_AB, B-A);
+% C belongs to CD, which pivots about D
+velocityC = cross(omegaCD, C-D);
+% E belongs to BEC. B is the point on that link whose velocity is known
+velocityE = velocityB + cross(omegaBEC, E-B);
+% F belongs to FG, which pivots about G
+velocityF = cross(omegaFG, F-G);
+
+% Cross checks along the other branch. Both residuals should be zero to
+% machine precision. If they are not, loop 1 or loop 2 was mis-assembled.
+checkC = velocityB + cross(omegaBEC, C-B) - velocityC;
+checkF = velocityE + cross(omegaEF, F-E) - velocityF;
+
+disp(' ');
+disp('Joint Velocities [vx vy vz]:');
+disp(['Velocity A: ', num2str(velocityA)]);
+disp(['Velocity B: ', num2str(velocityB)]);
+disp(['Velocity C: ', num2str(velocityC)]);
+disp(['Velocity D: ', num2str(velocityD)]);
+disp(['Velocity E: ', num2str(velocityE)]);
+disp(['Velocity F: ', num2str(velocityF)]);
+disp(['Velocity G: ', num2str(velocityG)]);
+disp(['Closure residual at C: ', num2str(norm(checkC))]);
+disp(['Closure residual at F: ', num2str(norm(checkF))]);
+
+% Accelerations at the joints
+% a = alpha x r + omega x (omega x r). The second term is the centripetal
+% part and always points back toward the reference point.
+accelerationA = [0 0 0];
+accelerationD = [0 0 0];
+accelerationG = [0 0 0];
+
+accelerationB = cross(alphaAB_vector, B-A) + cross(omega_AB, cross(omega_AB, B-A));
+accelerationC = cross(alphaCD_vector, C-D) + cross(omegaCD, cross(omegaCD, C-D));
+accelerationE = accelerationB + cross(alphaBEC_vector, E-B) + cross(omegaBEC, cross(omegaBEC, E-B));
+accelerationF = cross(alphaFG_vector, F-G) + cross(omegaFG, cross(omegaFG, F-G));
+
+checkAccC = accelerationB + cross(alphaBEC_vector, C-B) + cross(omegaBEC, cross(omegaBEC, C-B)) - accelerationC;
+checkAccF = accelerationE + cross(alphaEF_vector, F-E) + cross(omegaEF, cross(omegaEF, F-E)) - accelerationF;
+
+disp(' ');
+disp('Joint Accelerations [ax ay az]:');
+disp(['Acceleration A: ', num2str(accelerationA)]);
+disp(['Acceleration B: ', num2str(accelerationB)]);
+disp(['Acceleration C: ', num2str(accelerationC)]);
+disp(['Acceleration D: ', num2str(accelerationD)]);
+disp(['Acceleration E: ', num2str(accelerationE)]);
+disp(['Acceleration F: ', num2str(accelerationF)]);
+disp(['Acceleration G: ', num2str(accelerationG)]);
+disp(['Closure residual at C: ', num2str(norm(checkAccC))]);
+disp(['Closure residual at F: ', num2str(norm(checkAccF))]);
+
+% Velocities at the centers of mass
+% Same rule as the joints. For a link that pivots on ground the reference
+% is the ground pin, for a floating link it is whichever joint already has
+% a velocity. S2 sits on BEC and is referenced to B, S4 sits on EF and is
+% referenced to E.
+velocityS1 = cross(omega_AB, S1-A);
+velocityS2 = velocityB + cross(omegaBEC, S2-B);
+velocityS3 = cross(omegaCD, S3-D);
+velocityS4 = velocityE + cross(omegaEF, S4-E);
+velocityS5 = cross(omegaFG, S5-G);
+
+disp(' ');
+disp('Center of Mass Velocities [vx vy vz]:');
+disp(['Velocity S1 (AB):  ', num2str(velocityS1)]);
+disp(['Velocity S2 (BEC): ', num2str(velocityS2)]);
+disp(['Velocity S3 (CD):  ', num2str(velocityS3)]);
+disp(['Velocity S4 (EF):  ', num2str(velocityS4)]);
+disp(['Velocity S5 (FG):  ', num2str(velocityS5)]);
+
+% Accelerations at the centers of mass
+accelerationS1 = cross(alphaAB_vector, S1-A) + cross(omega_AB, cross(omega_AB, S1-A));
+accelerationS2 = accelerationB + cross(alphaBEC_vector, S2-B) + cross(omegaBEC, cross(omegaBEC, S2-B));
+accelerationS3 = cross(alphaCD_vector, S3-D) + cross(omegaCD, cross(omegaCD, S3-D));
+accelerationS4 = accelerationE + cross(alphaEF_vector, S4-E) + cross(omegaEF, cross(omegaEF, S4-E));
+accelerationS5 = cross(alphaFG_vector, S5-G) + cross(omegaFG, cross(omegaFG, S5-G));
+
+disp(' ');
+disp('Center of Mass Accelerations [ax ay az]:');
+disp(['Acceleration S1 (AB):  ', num2str(accelerationS1)]);
+disp(['Acceleration S2 (BEC): ', num2str(accelerationS2)]);
+disp(['Acceleration S3 (CD):  ', num2str(accelerationS3)]);
+disp(['Acceleration S4 (EF):  ', num2str(accelerationS4)]);
+disp(['Acceleration S5 (FG):  ', num2str(accelerationS5)]);
