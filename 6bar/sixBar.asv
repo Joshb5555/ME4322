@@ -76,9 +76,12 @@ eqn8 = cross(E-S4,-ForceE) + cross(F-S4,ForceF) == 0;
 % equations for link FG
 eqn9 = -ForceF + ForceG + WFG + AppliedForce == 0;
 % sum of moments = 0 with respect to COM of link FG
+% ForceF keeps the same minus sign it carries in eqn9
 eqn10 = cross(F-S5,-ForceF) + cross(G-S5,ForceG) == 0;
 % solving
-% 15 equations against the 14 joint force components plus Tin
+% Each force equation contributes two useful scalars in x and y. Each
+% moment equation contributes one in z. That is 15 equations against the
+% 14 joint force components plus Tin, so the system is square.
 eqnMatrix = [eqn1,eqn2,eqn3,eqn4,eqn5,eqn6,eqn7,eqn8,eqn9,eqn10];
 StaticSolution = solve(eqnMatrix, [FAx FAy FBx FBy FCx FCy FDx FDy FEx FEy FFx FFy FGx FGy Tin ]);
 Force_Ax = double(StaticSolution.FAx);
@@ -148,6 +151,9 @@ loop2Solution = solve(eqn12, [wEF wFG]);
 wEF_value = double(loop2Solution.wEF)
 wFG_value = double(loop2Solution.wFG)
 
+% Pack the loop 2 results the same way loop 1 was packed. Everything below
+% uses these two names. The earlier draft reached for angularVelocity_EF
+% and angularVelocity_FG, which were never assigned, so it errored here.
 omegaEF = [0 0 wEF_value];
 omegaFG = [0 0 wFG_value];
 
@@ -175,13 +181,15 @@ alphaBEC_vector = [0 0 alphaBEC];
 alphaCD_vector = [0 0 alphaCD];
 
 % Angular acceleration
-% Loop 2 DCEFGD
+% Loop 2 DCEFGD, the same circuit that produced wEF and wFG
 
 syms aEF aFG
 
 alpha_EF = [0 0 aEF];
 alpha_FG = [0 0 aFG];
 
+% The first two terms are already numeric because loop 1 has been solved.
+% Only a_F_E and a_G_F still carry unknowns.
 a_C_D = cross(alphaCD_vector,C-D) + cross(omegaCD,cross(omegaCD,C-D));
 a_E_C = cross(alphaBEC_vector,E-C) + cross(omegaBEC,cross(omegaBEC,E-C));
 a_F_E = cross(alpha_EF,F-E) + cross(omegaEF,cross(omegaEF,F-E));
@@ -216,19 +224,26 @@ disp(['alpha EF:  ', num2str(alphaEF)]);
 disp(['alpha FG:  ', num2str(alphaFG)]);
 
 % Velocities at the joints
-% v = omega x r, r from a point of known velocity on the same link.
-% A, D and G are pinned to ground.
+% A, D and G are pinned to ground so they do not move. Every other point
+% is reached with v = omega x r, where r runs from a point of known
+% velocity on the same link to the point of interest. Any point can be
+% reached by more than one route because the loops close, and the two
+% routes have to agree. That agreement is the check on the loop solutions.
 velocityA = [0 0 0];
 velocityD = [0 0 0];
 velocityG = [0 0 0];
 
+% B belongs to AB, which pivots about A
 velocityB = cross(omega_AB, B-A);
+% C belongs to CD, which pivots about D
 velocityC = cross(omegaCD, C-D);
+% E belongs to BEC. B is the point on that link whose velocity is known
 velocityE = velocityB + cross(omegaBEC, E-B);
+% F belongs to FG, which pivots about G
 velocityF = cross(omegaFG, F-G);
 
-% C and F can each be reached along a second branch. Both residuals
-% should be zero if the loop equations were assembled correctly.
+% Cross checks along the other branch. Both residuals should be zero to
+% machine precision. If they are not, loop 1 or loop 2 was mis-assembled.
 checkC = velocityB + cross(omegaBEC, C-B) - velocityC;
 checkF = velocityE + cross(omegaEF, F-E) - velocityF;
 
@@ -245,7 +260,8 @@ disp(['Closure residual at C: ', num2str(norm(checkC))]);
 disp(['Closure residual at F: ', num2str(norm(checkF))]);
 
 % Accelerations at the joints
-% a = alpha x r + omega x (omega x r)
+% a = alpha x r + omega x (omega x r). The second term is the centripetal
+% part and always points back toward the reference point.
 accelerationA = [0 0 0];
 accelerationD = [0 0 0];
 accelerationG = [0 0 0];
@@ -271,6 +287,10 @@ disp(['Closure residual at C: ', num2str(norm(checkAccC))]);
 disp(['Closure residual at F: ', num2str(norm(checkAccF))]);
 
 % Velocities at the centers of mass
+% Same rule as the joints. For a link that pivots on ground the reference
+% is the ground pin, for a floating link it is whichever joint already has
+% a velocity. S2 sits on BEC and is referenced to B, S4 sits on EF and is
+% referenced to E.
 velocityS1 = cross(omega_AB, S1-A);
 velocityS2 = velocityB + cross(omegaBEC, S2-B);
 velocityS3 = cross(omegaCD, S3-D);
@@ -300,9 +320,7 @@ disp(['Acceleration S3 (CD):  ', num2str(accelerationS3)]);
 disp(['Acceleration S4 (EF):  ', num2str(accelerationS4)]);
 disp(['Acceleration S5 (FG):  ', num2str(accelerationS5)]);
 
-% Newton's second law implementation
-% Same five free bodies as the statics block with sum(F) = m*a_Si and
-% sum(M) = J*alpha. The moment form only holds about the COM.
+%Newtons second law implementation]
 
 MassAB = 1;
 MassBEC = 1;
@@ -310,84 +328,65 @@ MassCD = 1;
 MassEF = 1;
 MassFG = 1;
 
-% Mass moment of inertia about each link's own COM
+% Mass moment of intertia
+
 J_AB = 1;
 J_BEC = 1;
 J_CD = 1;
 J_EF = 1;
 J_FG = 1;
 
-% With every mass equal to 1 the weight vectors above imply g = 1. Real
-% masses need the weights rewritten as -m*g.
-
 syms NFAx NFAy NFBx NFBy NFCx NFCy NFDx NFDy NFEx NFEy NFFx NFFy NFGx NFGy NTin
 
 % define forces
+
 NForceA = [NFAx NFAy 0];
 NForceB = [NFBx NFBy 0];
 NForceC = [NFCx NFCy 0];
 NForceD = [NFDx NFDy 0];
-NForceE = [NFEx NFEy 0];
+NForceE = [NFEy NFEy 0];
 NForceF = [NFFx NFFy 0];
 NForceG = [NFGx NFGy 0];
 NInputTorque = [0 0 NTin];
 
 % Equations for Link AB
+% Sum of forces = 0
+% Fa + Fb + WEightofAB + NForceA = 0
 eqn15 = NForceA + NForceB + WAB == MassAB * accelerationS1;
-eqn16 = cross(A-S1,NForceA) + cross(B-S1,NForceB) + NInputTorque == J_AB * alphaAB_vector;
+
+% sum of moments = 0
+
+eqn16 = cross(A-S1,NForceA) + cross(B-S1, NForceB) + NInputTorque == J_AB * alpha_AB;
 
 % Equations for Link BEC
-eqn17 = -NForceB + NForceC + NForceE + WBEC == MassBEC * accelerationS2;
-eqn18 = cross(B-S2,-NForceB) + cross(C-S2,NForceC) + cross(E-S2,NForceE) == J_BEC * alphaBEC_vector;
+% Sum of forces = 0
+eqn17 = -NForceB + NForceC + NForceC + NForceE + WBEC == MassBEC * accelerationS2;
+
+
+% Sum of moments = 0
+eqn18 = cross(B-S2, -NForceB) + cross(C-S2, NForceC) + cross(E-S2, NForceE) == J_BEC * alpha_BEC;
 
 % Equations for Link CD
+% Sum of forces = 0
 eqn19 = -NForceC + NForceD + WCD == MassCD * accelerationS3;
-eqn20 = cross(C-S3,-NForceC) + cross(D-S3,NForceD) == J_CD * alphaCD_vector;
+
+% Sum of moments = 0
+eqn20 = cross(C-S3, -NForceC) + cross(D-S3, NForceD) == J_CD * alpha_CD;
 
 % Equations for Link EF
+% Sum of forces = 0
 eqn21 = -NForceE + NForceF + WEF == MassEF * accelerationS4;
-eqn22 = cross(E-S4,-NForceE) + cross(F-S4,NForceF) == J_EF * alphaEF_vector;
+
+% Sum of moments = 0
+eqn22 = cross(E-S3, -NForceE) + cross(F-S3, NForceF) == J_EF * alpha_EF;
 
 % Equations for Link FG
+% Sum of forces = 0
 eqn23 = -NForceF + NForceG + WFG + AppliedForce == MassFG * accelerationS5;
-eqn24 = cross(F-S5,-NForceF) + cross(G-S5,NForceG) == J_FG * alphaFG_vector;
 
-% Solving
-eqnMatrixDynamics = [eqn15, eqn16, eqn17, eqn18, eqn19, eqn20, eqn21, eqn22, eqn23, eqn24];
-NewtonSolution = solve(eqnMatrixDynamics, [NFAx NFAy NFBx NFBy NFCx NFCy NFDx NFDy NFEx NFEy NFFx NFFy NFGx NFGy NTin]);
+% Sum of moments = 0
+eqn24 = cross(F-S5, -NForceF) + cross(G-S5, NForceG) == J_FG * alpha_FG;
 
-% Extract forces from the Newton's second law solution
-NForceA_x = double(NewtonSolution.NFAx);
-NForceA_y = double(NewtonSolution.NFAy);
-NForceB_x = double(NewtonSolution.NFBx);
-NForceB_y = double(NewtonSolution.NFBy);
-NForceC_x = double(NewtonSolution.NFCx);
-NForceC_y = double(NewtonSolution.NFCy);
-NForceD_x = double(NewtonSolution.NFDx);
-NForceD_y = double(NewtonSolution.NFDy);
-NForceE_x = double(NewtonSolution.NFEx);
-NForceE_y = double(NewtonSolution.NFEy);
-NForceF_x = double(NewtonSolution.NFFx);
-NForceF_y = double(NewtonSolution.NFFy);
-NForceG_x = double(NewtonSolution.NFGx);
-NForceG_y = double(NewtonSolution.NFGy);
-InputTorque_new = double(NewtonSolution.NTin);
 
-disp(' ');
-disp('Dynamic Joint Forces:');
-disp(['Force A_x: ', num2str(NForceA_x)]);
-disp(['Force A_y: ', num2str(NForceA_y)]);
-disp(['Force B_x: ', num2str(NForceB_x)]);
-disp(['Force B_y: ', num2str(NForceB_y)]);
-disp(['Force C_x: ', num2str(NForceC_x)]);
-disp(['Force C_y: ', num2str(NForceC_y)]);
-disp(['Force D_x: ', num2str(NForceD_x)]);
-disp(['Force D_y: ', num2str(NForceD_y)]);
-disp(['Force E_x: ', num2str(NForceE_x)]);
-disp(['Force E_y: ', num2str(NForceE_y)]);
-disp(['Force F_x: ', num2str(NForceF_x)]);
-disp(['Force F_y: ', num2str(NForceF_y)]);
-disp(['Force G_x: ', num2str(NForceG_x)]);
-disp(['Force G_y: ', num2str(NForceG_y)]);
-disp(['Input Torque: ', num2str(InputTorque_new)]);
-disp(['Static input torque for comparison: ', num2str(InputTorque_value)]);
+
+
