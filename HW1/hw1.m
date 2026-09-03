@@ -18,7 +18,7 @@ close all
 
 %% ---------------- Assumptions ----------------
 % 1. Planar mechanism, rigid links, frictionless revolute pins.
-% 2. Links are steel bars of the given cross section (width 10 cm,
+% 2. Links are 4340 steel bars of the given cross section (width 10 cm,
 %    thickness 5 cm, bore 6 cm) with semicircular ends of radius w/2.
 % 3. Link 3 is one straight bar from D to E with an extra bore at C
 %    (the three given coordinates are collinear to within 5.5 mm).

@@ -391,3 +391,22 @@ disp(['Force G_x: ', num2str(NForceG_x)]);
 disp(['Force G_y: ', num2str(NForceG_y)]);
 disp(['Input Torque: ', num2str(InputTorque_new)]);
 disp(['Static input torque for comparison: ', num2str(InputTorque_value)]);
+
+
+% Circle intersections
+
+inital_theta = atan2(B(2)-A(2)-A(2), B(1)-A(1));
+
+if (inital_theta)
+    input_angle = 2*pi + inital_theta;
+else
+    input_angle = inital_theta;
+end
+
+for theta=1:1:360
+    % new position of joint B
+    B_new = A + [lAB*cos(inputAngle+deg2rad(theta)),lAB*sin(inputAngle+deg2rad(theta)), 0];
+
+    % new position of joint C
+    [Cx, cylinder = circcirc(B_new(1),B_new(2),lBC,D(1),D(2),lCD)]
+end
