@@ -72,22 +72,15 @@ fprintf('Input angular velocity: %.4f rad/s (%.2f rpm)\n\n', omegaIn, omegaIn*60
 
 
 %% ---------------- Mass and mass moment of inertia ----------------
-% Plan area = rectangle + one full circle from the two semicircular ends,
-% less the bores. Inertia uses an equivalent rectangle of length L+w.
-linkMass = @(L,nBore) rho*tSec*( L*wSec + pi*(wSec/2)^2 - nBore*pi*(dBore/2)^2 );
 linkIner = @(m,L) m*((L+wSec)^2 + wSec^2)/12;
 
-m1 = linkMass(L_AB,2);
-m2 = linkMass(L_BC,2);
-m3 = linkMass(L_DE,3);
-m4 = linkMass(L_EF,2);
-m5 = linkMass(L_GH,3);
 
-% CAD masses
-useCAD = true;
-if useCAD
-    m1 = 23.3396; m2 = 56.5595; m3 = 97.3536; m4 = 46.9969; m5 = 173.5188;
-end
+m1 = 23.3396; 
+m2 = 56.5595; 
+m3 = 97.3536; 
+m4 = 46.9969; 
+m5 = 173.5188;
+
 
 J1 = linkIner(m1,L_AB);
 J2 = linkIner(m2,L_BC);
