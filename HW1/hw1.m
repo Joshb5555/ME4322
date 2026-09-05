@@ -114,7 +114,6 @@ vCom   = zeros(nStep,3,5);
 aCom   = zeros(nStep,3,5);
 Fstat  = zeros(nStep,15);
 Fdyn   = zeros(nStep,15);
-resid  = zeros(nStep,4);
 
 Cprev = C0;  Fprev = F0;
 
@@ -173,12 +172,6 @@ for k = 1:nStep
     aF = cross(A5v,F-G) - w5^2*(F-G);
     aH = cross(A5v,H-G) - w5^2*(H-G);
 
-    % closure residuals, both branches must agree at C and F
-    resid(k,1) = norm( vB + cross(W2v,C-B) - vC );
-    resid(k,2) = norm( vE + cross(W4v,F-E) - vF );
-    resid(k,3) = norm( aB + cross(A2v,C-B) - w2^2*(C-B) - aC );
-    resid(k,4) = norm( aE + cross(A4v,F-E) - w4^2*(F-E) - aF );
-
     % --- centre of mass velocity and acceleration ---
     vS1 = cross(W1v,S1-A);
     vS2 = vB + cross(W2v,S2-B);
@@ -216,7 +209,6 @@ for k = 1:nStep
     aCom(k,:,:)   = [aS1.' aS2.' aS3.' aS4.' aS5.'];
 end
 
-fprintf('Max loop closure residual: %.3e\n\n', max(resid(:)));
 
 %% ---------------- First position results ----------------
 lbl = {'AB','BC','DCE','EF','GF'};
